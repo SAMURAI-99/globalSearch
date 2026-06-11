@@ -1,19 +1,6 @@
 // ============================================================
 // GlobalSearch — search every server and DM at once
-// ============================================================
 // Made by SAMURAI (me! hi!)
-// 
-// This thing basically brute-forces Discord's own search API
-// across all your servers and DMs. You type something, it
-// fires off a bunch of requests to /guilds/{id}/messages/search
-// and /channels/{id}/messages/search, then shows you everything
-// it found in one big list.
-//
-// Settings let you:
-//   - change the shortcut key (default is Ctrl+Shift+G)
-//   - pick HOW you wanna open it — keyboard, chat bar button,
-//     a floating button on screen, or all of 'em
-//
 // If you're reading this and thinking "wtf does this do" —
 // don't worry, I wrote comments for every part of it to help you understand it if you wanna change anything :P
 // ============================================================
