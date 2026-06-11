@@ -24,7 +24,7 @@ import { addChatBarButton, removeChatBarButton, ChatBarButton } from "@api/ChatB
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { ChannelStore, createRoot, GuildStore, Modal, openModal, React, RestAPI, UserStore, NavigationRouter, ChannelRouter, MessageActions, TextInput, Button, Timestamp } from "@webpack/common";
+import { ChannelStore, GuildStore, Modal, openModal, React, RestAPI, UserStore, NavigationRouter, ChannelRouter, MessageActions, TextInput, Button, Timestamp } from "@webpack/common";
 
 // ---------- Search icon SVG (the little magnifying glass) ----------
 // Just a simple inline SVG so we don't need to import any icon library.
@@ -106,17 +106,6 @@ const settings = definePluginSettings({
             { label: "Both (Keyboard + Chat Bar)", value: "both", default: true },
             { label: "Keyboard Shortcut only", value: "shortcut" },
             { label: "Chat Bar Button only", value: "button" },
-            { label: "Floating Button only", value: "floating" },
-        ],
-    },
-    floatingButtonPosition: {
-        type: OptionType.SELECT,
-        description: "Where should the floating button sit?",
-        options: [
-            { label: "Bottom-right", value: "bottom-right", default: true },
-            { label: "Bottom-left", value: "bottom-left" },
-            { label: "Top-right", value: "top-right" },
-            { label: "Top-left", value: "top-left" },
         ],
     },
 });
@@ -301,57 +290,6 @@ function SVGSpinner() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: "vc-gs-spin 0.8s linear infinite" }}>
             <circle cx="12" cy="12" r="10" stroke="var(--brand-experiment)" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
         </svg>
-    );
-}
-
-// ---------- Floating search button ----------
-// A little circle button that floats on the screen wherever you
-// want it. Uses position:fixed so it stays put even when scrolling.
-// 
-// If you're using this with the keyboard shortcut you might not
-// need the floating button, but some people prefer clicking.
-
-function FloatingSearchButton({ position }: { position: string }) {
-    const positionStyles: Record<string, React.CSSProperties> = {
-        "bottom-right": { bottom: "24px", right: "24px" },
-        "bottom-left": { bottom: "24px", left: "24px" },
-        "top-right": { top: "24px", right: "24px" },
-        "top-left": { top: "24px", left: "24px" },
-    };
-
-    return (
-        <div
-            onClick={openSearchModal}
-            onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.transform = "scale(1.1)";
-            }}
-            onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
-            }}
-            style={{
-                position: "fixed",
-                ...(positionStyles[position] || positionStyles["bottom-right"]),
-                zIndex: 9999,
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                background: "var(--brand-experiment)",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                transition: "transform 0.15s ease, box-shadow 0.15s ease",
-            }}
-            role="button"
-            aria-label="Global Search"
-            title="Global Search"
-        >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-            </svg>
-        </div>
     );
 }
 
@@ -749,10 +687,7 @@ export default definePlugin({
             document.addEventListener("keydown", this._keydownHandler);
         }
 
-        // --- Floating Button ---
-        if (mode === "floating") {
-            this._renderFloatingButton();
-        }
+
     },
 
     stop() {
@@ -766,37 +701,7 @@ export default definePlugin({
             this._keydownHandler = null;
         }
 
-        if (this._reactRoot) {
-            this._reactRoot.unmount();
-            this._reactRoot = null;
-        }
-        if (this._floatingButtonRoot) {
-            document.body.removeChild(this._floatingButtonRoot);
-            this._floatingButtonRoot = null;
-        }
+
     },
 
-    // ---- Floating button renderer ----
-    // Creates a DOM mount point in the body and renders the
-    // FloatingSearchButton into it via React.
-    // We store both the DOM node AND the React root so we can
-    // properly unmount later (otherwise React throws a fit).
-
-    _floatingButtonRoot: null as HTMLDivElement | null,
-    _reactRoot: null as ReturnType<typeof createRoot> | null,
-    _keydownHandler: null as ((e: KeyboardEvent) => void) | null,
-
-    _renderFloatingButton() {
-        if (this._floatingButtonRoot) return; // already rendered
-
-        const root = document.createElement("div");
-        root.id = "vc-global-search-floating-btn";
-        document.body.appendChild(root);
-        this._floatingButtonRoot = root;
-
-        const pos = settings.store.floatingButtonPosition || "bottom-right";
-        const reactRoot = createRoot(root);
-        reactRoot.render(<FloatingSearchButton position={pos} />);
-        this._reactRoot = reactRoot;
-    },
-});
+    _keydownHandler: null as ((e: KeyboardEvent) => void) | null,});
