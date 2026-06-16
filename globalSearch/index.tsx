@@ -1,10 +1,3 @@
-// ============================================================
-// GlobalSearch — search every server and DM at once
-// Made by SAMURAI (me! hi!)
-// If you're reading this and thinking "wtf does this do" —
-// don't worry, I wrote comments for every part of it to help you understand it if you wanna change anything :P
-// ============================================================
-
 import "./style.css";
 
 import { addChatBarButton, removeChatBarButton, ChatBarButton } from "@api/ChatButtons";
@@ -13,15 +6,12 @@ import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, GuildStore, Modal, openModal, React, RestAPI, UserStore, NavigationRouter, ChannelRouter, MessageActions, TextInput, Button, Timestamp } from "@webpack/common";
 
-// ---------- Search icon SVG (the little magnifying glass) ----------
-// Just a simple inline SVG so we don't need to import any icon library.
 const SEARCH_ICON = () => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
         <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
     </svg>
 );
 
-// ---------- Types so TypeScript doesn't scream at us ----------
 
 interface SearchHit {
     messageId: string;
@@ -54,8 +44,6 @@ interface GuildEntry {
     ownerId?: string;
 }
 
-// ---------- Plugin settings ----------
-// These show up in Vencord's plugin settings panel.
 
 const settings = definePluginSettings({
     maxResultsPerGuild: {
@@ -97,9 +85,6 @@ const settings = definePluginSettings({
     },
 });
 
-// ---------- Helpers for blacklist/whitelist ----------
-// These parse the comma-separated strings into Sets so we can
-// quickly check if a guild is included or excluded.
 
 function getBlacklistedGuilds(): Set<string> {
     return new Set(settings.store.blacklistedGuilds.split(",").map(s => s.trim()).filter(Boolean));
@@ -107,24 +92,15 @@ function getBlacklistedGuilds(): Set<string> {
 
 function getWhitelistedGuilds(): Set<string> {
     const list = settings.store.whitelistedGuilds.split(",").map(s => s.trim()).filter(Boolean);
-    // If the whitelist is empty, return null meaning "no filter"
     return list.length > 0 ? new Set(list) : null as any;
 }
 
-// ---------- Shortcut key parser ----------
-// Takes something like "Ctrl+Shift+G" and returns an object
-// with the modifier flags and the key to listen for.
-// 
-// Supports: Ctrl, Shift, Alt, Meta (Cmd on Mac / Win on Windows)
-//
-// If the user types something we can't parse (like "Ctrl+G+F")
-// we just return null and gracefully do nothing.
 
 function parseShortcut(shortcut: string): { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean; key: string; } | null {
     if (!shortcut || typeof shortcut !== "string") return null;
 
     const parts = shortcut.split("+").map(s => s.trim()).filter(Boolean);
-    if (parts.length < 2) return null; // need at least modifier + key
+    if (parts.length < 2) return null;
 
     const result: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean; key: string; } = { key: "" };
     const mods = new Set(parts.slice(0, -1).map(s => s.toLowerCase()));
@@ -134,19 +110,14 @@ function parseShortcut(shortcut: string): { ctrl?: boolean; shift?: boolean; alt
     if (mods.has("alt")) result.alt = true;
     if (mods.has("meta") || mods.has("cmd") || mods.has("win")) result.meta = true;
 
-    // Last part is the key
     result.key = parts[parts.length - 1];
 
-    // Need at least one modifier and a valid key
     if (!result.ctrl && !result.shift && !result.alt && !result.meta) return null;
     if (!result.key) return null;
 
     return result;
 }
 
-// ---------- Checking if a keyboard event matches our shortcut ----------
-// We parse the shortcut string once and cache it. If it's invalid,
-// we just return false for everything and the shortcut won't work.
 
 let _parsedShortcutCache: ReturnType<typeof parseShortcut> | null = null;
 let _lastShortcutKey = "";
@@ -165,22 +136,15 @@ function matchesShortcut(e: KeyboardEvent): boolean {
     if (s.shift && !e.shiftKey) return false;
     if (s.alt && !e.altKey) return false;
     if (s.meta && !e.metaKey) return false;
-    // If the shortcut doesn't include a modifier, make sure none are pressed
     if (!s.ctrl && !s.shift && !s.alt && !s.meta) return false;
 
     const key = s.key.toLowerCase();
-    // For letter keys, compare the lowercase version
-    // For special keys like "Enter", "Escape", etc., compare directly
     if (key.length === 1) {
         return e.key.toLowerCase() === key;
     }
     return e.key === key;
 }
 
-// ---------- API calls ----------
-// These slap Discord's REST API to search for messages.
-// We use RestAPI.get() which is already authenticated — Vencord
-// handles the token stuff for us.
 
 async function searchGuild(guildId: string, query: string, maxResults: number): Promise<SearchHit[]> {
     try {
@@ -195,8 +159,6 @@ async function searchGuild(guildId: string, query: string, maxResults: number): 
 
         return parseSearchResponse(body, guildId);
     } catch (e) {
-        // Shh, we don't need to bother the user with every failed request.
-        // Some servers might be unavailable or the bot might not have access.
         console.error(`[GlobalSearch] Failed to search guild ${guildId}:`, e);
         return [];
     }
@@ -219,9 +181,6 @@ async function searchDMChannel(channelId: string, query: string, maxResults: num
     }
 }
 
-// Discord's search API returns a weird nested array format.
-// Each entry in `messages` is an array where the first element
-// is the matched message. We just grab that first one.
 function parseSearchResponse(body: SearchResponse, guildId: string | null): SearchHit[] {
     if (!body?.messages) return [];
 
@@ -230,11 +189,9 @@ function parseSearchResponse(body: SearchResponse, guildId: string | null): Sear
 
     for (const group of body.messages) {
         if (!group || group.length === 0) continue;
-        const msg = group[0]; // The first message is the one that matched
+        const msg = group[0];
         if (!msg || !msg.id) continue;
 
-        // We try to get the full user/channel info from stores,
-        // but fall back to whatever the API gave us.
         const author = UserStore.getUser(msg.author?.id);
         const channel = ChannelStore.getChannel(msg.channel_id);
 
@@ -260,17 +217,11 @@ function parseSearchResponse(body: SearchResponse, guildId: string | null): Sear
     return hits;
 }
 
-// ---------- Modal opener ----------
-// I made this a standalone function so both the keyboard shortcut
-// AND the buttons can call it.
 
 function openSearchModal() {
     openModal(props => <GlobalSearchModal modalProps={props} />);
 }
 
-// ---------- Spinning loading indicator ----------
-// Literally just an SVG circle that spins. The @keyframes animation
-// is defined in style.css. Nothing fancy.
 
 function SVGSpinner() {
     return (
@@ -280,10 +231,6 @@ function SVGSpinner() {
     );
 }
 
-// ---------- The actual search modal ----------
-// This is what pops up when you hit the shortcut or click a button.
-// It's a full Discord-native modal (uses Modal from @webpack/common)
-// so it looks and feels like part of the app.
 
 function GlobalSearchModal({ modalProps }: { modalProps: any }) {
     const [query, setQuery] = React.useState("");
@@ -294,15 +241,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
     const [searchType, setSearchType] = React.useState<"all" | "guilds" | "dms">("all");
     const searchCanceled = React.useRef(false);
 
-    // --------------------------------------------------
-    // handleSearch — the big one
-    // --------------------------------------------------
-    // This is where the magic happens. We gather up all the
-    // guilds and DMs (filtered by your settings), then fire
-    // off requests in batches of 5 to avoid getting rate-limited.
-    //
-    // Results show up progressively as each batch finishes,
-    // so you don't have to stare at a blank screen forever.
 
     const handleSearch = async () => {
         if (!query.trim()) return;
@@ -317,7 +255,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
         const blacklisted = getBlacklistedGuilds();
         const whitelisted = getWhitelistedGuilds();
 
-        // Grab all guilds and filter 'em
         const guilds = GuildStore.getGuilds();
         const guildIds = Object.keys(guilds).filter(id => {
             if (blacklisted.has(id)) return false;
@@ -328,7 +265,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
         const searchDMs = settings.store.searchDMs && searchType !== "guilds";
         const searchGuildsEnabled = searchType !== "dms";
 
-        // Build the list of things to search
         const channelsToSearch: Array<{ type: "guild"; guildId: string; } | { type: "dm"; channelId: string; }> = [];
 
         if (searchGuildsEnabled) {
@@ -348,7 +284,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
 
         setProgress({ current: 0, total: channelsToSearch.length });
 
-        // Search in batches of 5 — keeps things from exploding
         const batchSize = 5;
         for (let i = 0; i < channelsToSearch.length; i += batchSize) {
             if (searchCanceled.current) break;
@@ -369,7 +304,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                 allResults.push(...hits);
             }
 
-            // Update results progressively so the user sees stuff coming in
             setResults([...allResults]);
             setProgress({
                 current: Math.min(i + batchSize, channelsToSearch.length),
@@ -377,27 +311,17 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
             });
         }
 
-        // Sort results newest-first
         allResults.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setResults(allResults);
         setIsSearching(false);
     };
 
-    // Press Enter to search (or Search button)
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !isSearching) {
             handleSearch();
         }
     };
 
-    // --------------------------------------------------
-    // navigateToMessage — clicks a result and teleports you
-    // --------------------------------------------------
-    // This is kinda hacky, ngl. We close the modal, navigate
-    // to the guild, then to the channel, THEN jump to the message.
-    // The setTimeout delays are needed because Discord's router
-    // needs a moment to settle. If someone reading this knows a
-    // better way, PLEASE fix this lol.
 
     const navigateToMessage = (hit: SearchHit) => {
         modalProps.onClose();
@@ -424,7 +348,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
         setIsSearching(false);
     };
 
-    // Get guild info for the filter bar label
     const guilds = GuildStore.getGuilds();
     const guildList = Object.values(guilds) as GuildEntry[];
 
@@ -436,7 +359,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
         return true;
     }).length;
 
-    // The shortcut display string for the placeholder
     const shortcutDisplay = settings.store.shortcutKey;
 
     return (
@@ -446,7 +368,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
             title="Global Search"
         >
             <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                {/* ---- Search input row ---- */}
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                     <div style={{ flex: 1, position: "relative" }}>
                         <TextInput
@@ -476,7 +397,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                     )}
                 </div>
 
-                {/* ---- Filter bar: All / Servers / DMs ---- */}
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ color: "var(--text-muted)", fontSize: "12px", fontWeight: 600 }}>
                         Search in:
@@ -494,7 +414,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                     ))}
                 </div>
 
-                {/* ---- Progress indicator (spinner + counter) ---- */}
                 {isSearching && (
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-muted)", fontSize: "13px" }}>
                         <SVGSpinner />
@@ -504,7 +423,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                     </div>
                 )}
 
-                {/* ---- Results list ---- */}
                 <div style={{
                     display: "flex",
                     flexDirection: "column",
@@ -533,7 +451,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                             }}
                             className="vc-global-search-result"
                         >
-                            {/* Meta row: guild/DM badge + channel name + author */}
                             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                                 {hit.guildName ? (
                                     <span style={{
@@ -588,7 +505,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                                 )}
                             </div>
 
-                            {/* Message content — clipped to 2 lines */}
                             <div style={{
                                 fontSize: "13px",
                                 color: "var(--text-normal)",
@@ -603,7 +519,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                                 {hit.content}
                             </div>
 
-                            {/* Timestamp */}
                             <div style={{
                                 fontSize: "10px",
                                 color: "var(--text-muted)",
@@ -615,7 +530,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
                     ))}
                 </div>
 
-                {/* ---- Summary at the bottom ---- */}
                 {!isSearching && results.length > 0 && (
                     <div style={{ color: "var(--text-muted)", fontSize: "12px", textAlign: "center" }}>
                         Found {results.length} result{results.length !== 1 ? "s" : ""}
@@ -626,16 +540,6 @@ function GlobalSearchModal({ modalProps }: { modalProps: any }) {
     );
 }
 
-// 
-// Plugin definition — where it all comes together
-// 
-//
-// The start() function handles:
-//   - Adding the chat bar button (if activationMode allows it)
-//   - Registering the keyboard shortcut (if activationMode allows it)
-//   - Adding the floating button (if activationMode allows it)
-//
-// The stop() function cleans everything up.
 
 export default definePlugin({
     name: "GlobalSearch",
@@ -650,7 +554,6 @@ export default definePlugin({
     start() {
         const mode = settings.store.activationMode;
 
-        // --- Chat Bar Button ---
         if (mode === "both" || mode === "button") {
             addChatBarButton("global-search", () => (
                 <ChatBarButton
@@ -662,7 +565,6 @@ export default definePlugin({
             ), SEARCH_ICON);
         }
 
-        // --- Keyboard Shortcut ---
         if (mode === "both" || mode === "shortcut") {
             this._keydownHandler = (e: KeyboardEvent) => {
                 if (matchesShortcut(e)) {
@@ -678,9 +580,6 @@ export default definePlugin({
     },
 
     stop() {
-        // Unconditionally clean up EVERYTHING — this way, even if the user
-        // changed activationMode in settings before disabling the plugin,
-        // we still remove all the stuff we might have set up.
         removeChatBarButton("global-search");
 
         if (this._keydownHandler) {
